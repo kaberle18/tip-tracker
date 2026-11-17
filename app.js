@@ -22,7 +22,7 @@
   // ---------- account + cloud sync ----------
   const TOKEN_KEY = 'tiptrack:token';
   let token = (() => { try { return localStorage.getItem(TOKEN_KEY); } catch { return null; } })();
-  let syncTimer = null, syncing = false, syncAgain = false;
+  let syncTimer = null, syncing = false, syncAgain = false, dirty = false, serverVersion = 0;
   async function api(path, opts = {}) {
     const r = await fetch(path, {
       method: opts.method || 'GET',
@@ -31,42 +31,58 @@
     });
     let data = {}; try { data = await r.json(); } catch {}
     if (r.status === 401 && token && !opts.noLogout) { signOut(true); }
-    if (!r.ok) throw new Error(data.error || 'Something went wrong — please try again');
+    if (!r.ok) { const e = new Error(data.error || 'Something went wrong — please try again'); e.status = r.status; e.body = data; throw e; }
     return data;
   }
   function setSync(text) { const el = document.getElementById('syncStatus'); if (el) el.textContent = text; }
-  function queueSync() { if (!token) return; setSync('Saving…'); clearTimeout(syncTimer); syncTimer = setTimeout(pushSync, 600); }
-  async function pushSync() {
-    if (!token) return;
-    if (syncing) { syncAgain = true; return; }
-    syncing = true;
-    try {
-      await api('/api/data', { method: 'PUT', body: { data: { rates: state.rates, shifts: state.shifts, brand: state.brand } } });
-      setSync('All changes saved');
-    } catch (e) { setSync('Not saved — will retry'); clearTimeout(syncTimer); syncTimer = setTimeout(pushSync, 5000); }
-    finally { syncing = false; if (syncAgain) { syncAgain = false; pushSync(); } }
+  function queueSync() { if (!token) return; dirty = true; setSync('Saving…'); clearTimeout(syncTimer); syncTimer = setTimeout(pushSync, 600); }
+  const payload = () => ({ data: { rates: state.rates, shifts: state.shifts, brand: state.brand }, version: serverVersion });
+  function adoptServer(res) {
+    serverVersion = res.version ?? 0;
+    if (res.data) state = { ...blank(), ...res.data, brand: { ...DEFAULT_BRAND, ...(res.data.brand || {}) } };
+    saveLocal(); dirty = false;
   }
-  window.addEventListener('beforeunload', () => {
-    if (token && syncTimer) { try { fetch('/api/data', { method: 'PUT', keepalive: true, headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ data: { rates: state.rates, shifts: state.shifts, brand: state.brand } }) }); } catch {} }
+  async function pushSync() {
+    clearTimeout(syncTimer); syncTimer = null;
+    if (!token || !dirty) return;
+    if (syncing) { syncAgain = true; return; }
+    syncing = true; dirty = false;
+    try {
+      const res = await api('/api/data', { method: 'PUT', body: payload() });
+      serverVersion = res.version;
+      setSync('All changes saved');
+    } catch (e) {
+      if (e.status === 409) {
+        adoptServer(e.body); renderAll(); resetShiftForm();
+        setSync('All changes saved');
+        toast('Updated with changes from another device — please re-check your last edit');
+      } else { dirty = true; setSync('Not saved — will retry'); syncTimer = setTimeout(pushSync, 5000); }
+    } finally { syncing = false; if (syncAgain) { syncAgain = false; pushSync(); } }
+  }
+  // Only flush on close if there are unsaved edits from THIS page.
+  window.addEventListener('pagehide', () => {
+    if (token && dirty && !syncing) { try { fetch('/api/data', { method: 'PUT', keepalive: true, headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(payload()) }); } catch {} }
+  });
+  // Coming back to the app: pick up changes made on other devices.
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState !== 'visible' || !token || dirty || syncing || $('#appShell').hidden) return;
+    try { const res = await api('/api/data'); if ((res.version ?? 0) !== serverVersion) { adoptServer(res); renderAll(); } } catch {}
   });
 
   async function loadAccount() {
     const res = await api('/api/data');
     document.getElementById('accountEmail').textContent = res.email;
-    const local = load();
     if (res.data) {
-      state = { ...blank(), ...res.data, brand: { ...DEFAULT_BRAND, ...(res.data.brand || {}) } };
-      saveLocal();
+      adoptServer(res);
       setSync('All changes saved');
     } else {
       // New account: keep anything already entered on this device
-      state = local;
-      saveLocal();
-      await pushSync();
+      state = load(); serverVersion = res.version ?? 0; saveLocal();
+      if (state.shifts.length || state.rates.length) { dirty = true; await pushSync(); }
     }
   }
   function signOut(expired) {
-    token = null; clearTimeout(syncTimer);
+    token = null; clearTimeout(syncTimer); dirty = false; serverVersion = 0;
     try { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(KEY); } catch {}
     state = blank();
     showAuth('signin', expired ? 'Your session ended — please sign in again.' : '');
