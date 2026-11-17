@@ -17,7 +17,7 @@ module.exports = handler(['POST'], async (req, res) => {
   if (!user) return res.json({ ok: true });
   const token = crypto.randomBytes(32).toString('hex');
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-  await pool.query('UPDATE users SET reset_token = $1, reset_token_expires_at = $2 WHERE id = $3',
+  await pool.query('UPDATE tiptrack_users SET reset_token = $1, reset_token_expires_at = $2 WHERE id = $3',
     [tokenHash, new Date(Date.now() + 60 * 60 * 1000), user.id]);
   const link = `${appUrl(req)}/reset-password?token=${token}`;
   await sendEmail({
