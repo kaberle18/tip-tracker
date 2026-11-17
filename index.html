@@ -11,6 +11,29 @@
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
+  <div id="authScreen" class="auth-screen" hidden>
+    <div class="auth-card">
+      <div class="auth-brand"><span class="auth-logo">$</span> TipTrack</div>
+      <p class="muted small auth-tag">Tips, hours &amp; your real hourly pay</p>
+
+      <form id="authForm" novalidate>
+        <h2 id="authTitle">Sign in</h2>
+        <p id="authIntro" class="muted small" hidden></p>
+        <label id="authEmailWrap">Email<input type="email" name="email" autocomplete="email" required /></label>
+        <label id="authPassWrap">Password<input type="password" name="password" autocomplete="current-password" minlength="8" /></label>
+        <label id="authPass2Wrap" hidden>Confirm password<input type="password" name="password2" autocomplete="new-password" minlength="8" /></label>
+        <div id="authError" class="auth-error" hidden></div>
+        <div id="authOk" class="auth-ok" hidden></div>
+        <button type="submit" class="btn primary big full" id="authSubmit">Sign in</button>
+      </form>
+      <div class="auth-links">
+        <button type="button" class="link" data-mode="forgot" id="lnkForgot">Forgot password?</button>
+        <span id="lnkSwitchWrap"><span id="lnkSwitchText">New here?</span> <button type="button" class="link" id="lnkSwitch" data-mode="signup">Create an account</button></span>
+      </div>
+    </div>
+  </div>
+
+  <div id="appShell" hidden>
   <header class="topbar">
     <div class="brand">
       <img id="brandLogo" class="brand-logo" alt="" hidden />
@@ -114,6 +137,13 @@
     <!-- SETTINGS -->
     <section id="view-settings" class="view">
       <div class="card">
+        <div class="card-head"><h3>Account</h3><span id="syncStatus" class="muted small"></span></div>
+        <div class="account-row">
+          <div><div class="label">Signed in as</div><div id="accountEmail" class="account-email"></div></div>
+          <button class="btn ghost" id="btnSignOut" type="button">Sign out</button>
+        </div>
+      </div>
+      <div class="card">
         <div class="card-head"><h3>Base pay rate</h3></div>
         <p class="muted small">Add a new rate whenever your pay changes. Each shift uses the rate that was in effect on its date.</p>
         <form id="rateForm" class="inline-form">
@@ -144,7 +174,7 @@
 
       <div class="card">
         <div class="card-head"><h3>Your data</h3></div>
-        <p class="muted small">Everything is saved privately in this browser on this device. Back it up to move it to another phone or computer.</p>
+        <p class="muted small">Your shifts are saved to your account, so you can sign in from any phone or computer. You can also download a copy anytime.</p>
         <div class="row-gap">
           <button class="btn ghost" id="btnBackup">Download backup</button>
           <label class="btn ghost file-btn">Restore backup<input type="file" id="restoreFile" accept="application/json" hidden /></label>
@@ -153,6 +183,8 @@
       </div>
     </section>
   </main>
+
+  </div>
 
   <div id="toast" class="toast" hidden></div>
   <script src="/app.js"></script>

@@ -16,9 +16,60 @@
     } catch { return blank(); }
   }
   let state = load();
-  function save() {
-    try { localStorage.setItem(KEY, JSON.stringify(state)); }
-    catch { toast('Could not save — browser storage is unavailable'); }
+  function saveLocal() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} }
+  function save() { saveLocal(); queueSync(); }
+
+  // ---------- account + cloud sync ----------
+  const TOKEN_KEY = 'tiptrack:token';
+  let token = (() => { try { return localStorage.getItem(TOKEN_KEY); } catch { return null; } })();
+  let syncTimer = null, syncing = false, syncAgain = false;
+  async function api(path, opts = {}) {
+    const r = await fetch(path, {
+      method: opts.method || 'GET',
+      headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) },
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+    });
+    let data = {}; try { data = await r.json(); } catch {}
+    if (r.status === 401 && token && !opts.noLogout) { signOut(true); }
+    if (!r.ok) throw new Error(data.error || 'Something went wrong — please try again');
+    return data;
+  }
+  function setSync(text) { const el = document.getElementById('syncStatus'); if (el) el.textContent = text; }
+  function queueSync() { if (!token) return; setSync('Saving…'); clearTimeout(syncTimer); syncTimer = setTimeout(pushSync, 600); }
+  async function pushSync() {
+    if (!token) return;
+    if (syncing) { syncAgain = true; return; }
+    syncing = true;
+    try {
+      await api('/api/data', { method: 'PUT', body: { data: { rates: state.rates, shifts: state.shifts, brand: state.brand } } });
+      setSync('All changes saved');
+    } catch (e) { setSync('Not saved — will retry'); clearTimeout(syncTimer); syncTimer = setTimeout(pushSync, 5000); }
+    finally { syncing = false; if (syncAgain) { syncAgain = false; pushSync(); } }
+  }
+  window.addEventListener('beforeunload', () => {
+    if (token && syncTimer) { try { fetch('/api/data', { method: 'PUT', keepalive: true, headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ data: { rates: state.rates, shifts: state.shifts, brand: state.brand } }) }); } catch {} }
+  });
+
+  async function loadAccount() {
+    const res = await api('/api/data');
+    document.getElementById('accountEmail').textContent = res.email;
+    const local = load();
+    if (res.data) {
+      state = { ...blank(), ...res.data, brand: { ...DEFAULT_BRAND, ...(res.data.brand || {}) } };
+      saveLocal();
+      setSync('All changes saved');
+    } else {
+      // New account: keep anything already entered on this device
+      state = local;
+      saveLocal();
+      await pushSync();
+    }
+  }
+  function signOut(expired) {
+    token = null; clearTimeout(syncTimer);
+    try { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(KEY); } catch {}
+    state = blank();
+    showAuth('signin', expired ? 'Your session ended — please sign in again.' : '');
   }
 
   // ---------- helpers ----------
@@ -330,8 +381,78 @@
   function inkFor(c) { return luminance(c) > 0.45 ? '#111827' : '#ffffff'; }
   function mix(a, b, t) { const A = rgb(a), B = rgb(b); return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, '0')).join(''); }
 
+  // ---------- auth screens ----------
+  let authMode = 'signin', resetToken = null;
+  const MODES = {
+    signin: { title: 'Sign in', btn: 'Sign in', pass: true, pass2: false, forgot: true, switchText: 'New here?', switchBtn: 'Create an account', switchTo: 'signup' },
+    signup: { title: 'Create your account', btn: 'Create account', pass: true, pass2: true, forgot: false, switchText: 'Already have an account?', switchBtn: 'Sign in', switchTo: 'signin' },
+    forgot: { title: 'Reset your password', btn: 'Email me a reset link', pass: false, pass2: false, forgot: false, intro: "Enter your account email and we'll send you a link to choose a new password.", switchText: 'Remembered it?', switchBtn: 'Back to sign in', switchTo: 'signin' },
+    reset: { title: 'Choose a new password', btn: 'Save new password', email: false, pass: true, pass2: true, forgot: false, switchText: '', switchBtn: 'Back to sign in', switchTo: 'signin' },
+  };
+  function showAuth(mode, msg) {
+    authMode = mode; const m = MODES[mode]; const f = $('#authForm');
+    $('#appShell').hidden = true; $('#authScreen').hidden = false;
+    $('#authTitle').textContent = m.title; $('#authSubmit').textContent = m.btn;
+    $('#authIntro').hidden = !m.intro; $('#authIntro').textContent = m.intro || '';
+    $('#authEmailWrap').hidden = m.email === false;
+    $('#authPassWrap').hidden = !m.pass; $('#authPass2Wrap').hidden = !m.pass2;
+    $('#authPassWrap').firstChild.textContent = mode === 'reset' ? 'New password' : 'Password';
+    f.password.autocomplete = mode === 'signin' ? 'current-password' : 'new-password';
+    $('#lnkForgot').hidden = !m.forgot;
+    $('#lnkSwitchText').textContent = m.switchText; $('#lnkSwitch').textContent = m.switchBtn; $('#lnkSwitch').dataset.mode = m.switchTo;
+    $('#authError').hidden = true; $('#authOk').hidden = !msg; $('#authOk').textContent = msg || '';
+    f.password.value = ''; f.password2.value = '';
+    setTimeout(() => (m.email === false ? f.password : f.email).focus(), 30);
+  }
+  $('#lnkForgot').addEventListener('click', () => showAuth('forgot'));
+  $('#lnkSwitch').addEventListener('click', e => {
+    if (authMode === 'reset') history.replaceState(null, '', '/');
+    showAuth(e.currentTarget.dataset.mode);
+  });
+  $('#authForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = e.target, btn = $('#authSubmit'), err = $('#authError'), ok = $('#authOk');
+    err.hidden = true; ok.hidden = true;
+    const email = f.email.value.trim(), password = f.password.value;
+    const fail = m => { err.textContent = m; err.hidden = false; };
+    if (authMode !== 'reset' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail('Enter a valid email address');
+    if (MODES[authMode].pass && password.length < 8) return fail('Password must be at least 8 characters');
+    if (MODES[authMode].pass2 && password !== f.password2.value) return fail("Passwords don't match");
+    const label = btn.textContent; btn.disabled = true; btn.textContent = 'One moment…';
+    try {
+      if (authMode === 'forgot') {
+        await api('/api/auth/forgot', { method: 'POST', body: { email } });
+        ok.textContent = `If an account exists for ${email}, a reset link is on its way. Check your inbox (and spam).`; ok.hidden = false;
+      } else {
+        const path = { signin: '/api/auth/login', signup: '/api/auth/register', reset: '/api/auth/reset' }[authMode];
+        const body = authMode === 'reset' ? { token: resetToken, password } : { email, password };
+        const res = await api(path, { method: 'POST', body, noLogout: true });
+        token = res.access_token; try { localStorage.setItem(TOKEN_KEY, token); } catch {}
+        if (authMode === 'reset') history.replaceState(null, '', '/');
+        await enterApp();
+        if (authMode === 'signup') toast('Welcome! Start by adding your base rate in Settings');
+        if (authMode === 'reset') toast('Password updated');
+      }
+    } catch (ex) { fail(ex.message); }
+    finally { btn.disabled = false; btn.textContent = label; }
+  });
+  $('#btnSignOut').addEventListener('click', () => signOut(false));
+
+  async function enterApp() {
+    await loadAccount();
+    $('#authScreen').hidden = true; $('#appShell').hidden = false;
+    $('#rateForm').effective.value = today();
+    resetShiftForm(); renderAll();
+  }
+
   // ---------- init ----------
-  $('#rateForm').effective.value = today();
-  resetShiftForm();
-  renderAll();
+  applyBrand();
+  const params = new URLSearchParams(location.search);
+  if (location.pathname.startsWith('/reset-password') && params.get('token')) {
+    resetToken = params.get('token'); showAuth('reset');
+  } else if (token) {
+    enterApp().catch(ex => { if (token) showAuth('signin', ex.message); });
+  } else {
+    showAuth('signin');
+  }
 })();
