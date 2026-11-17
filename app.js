@@ -6,7 +6,7 @@
   const DEFAULT_BRAND = { name: 'TipTrack', primary: '#0f766e', accent: '#f59e0b', background: '#f6f7f9', logo: '' };
 
   // ---------- storage ----------
-  const blank = () => ({ rates: [], shifts: [], clock: null, brand: { ...DEFAULT_BRAND } });
+  const blank = () => ({ rates: [], shifts: [], brand: { ...DEFAULT_BRAND } });
   function load() {
     try {
       const raw = localStorage.getItem(KEY);
@@ -35,7 +35,6 @@
   const hrs = n => (Math.round(n * 100) / 100).toLocaleString(undefined, { maximumFractionDigits: 2 });
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmtDate = s => parseYmd(s).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: parseYmd(s).getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined });
-  const hhmm = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
   function toast(msg) {
     const t = $('#toast');
@@ -51,7 +50,7 @@
     return r ? r.rate : (sorted[0]?.rate ?? 0);
   }
 
-  const shiftTips = s => num(s.cashTips) + num(s.cardTips);
+  const shiftTips = s => num(s.tips) + num(s.cashTips) + num(s.cardTips);
   const shiftBase = s => num(s.hours) * num(s.baseRate);
   const shiftTotal = s => shiftTips(s) + shiftBase(s);
 
@@ -165,16 +164,15 @@
   }
 
   function renderShifts() {
-    const rows = [...state.shifts].sort((a, b) => (b.date + (b.start || '')).localeCompare(a.date + (a.start || '')));
+    const rows = [...state.shifts].sort((a, b) => b.date.localeCompare(a.date));
     $('#emptyShifts').hidden = rows.length > 0;
     $('#shiftRows').innerHTML = rows.map(s => {
       const total = shiftTotal(s), eff = num(s.hours) ? total / num(s.hours) : 0;
-      const tipsDetail = [num(s.cashTips) ? `cash ${money(num(s.cashTips))}` : '', num(s.cardTips) ? `card ${money(num(s.cardTips))}` : ''].filter(Boolean).join(' · ');
       return `<tr>
-        <td><b>${esc(fmtDate(s.date))}</b>${s.start && s.end ? `<div class="sub">${esc(s.start)}–${esc(s.end)}</div>` : ''}${s.note ? `<div class="sub">${esc(s.note)}</div>` : ''}</td>
+        <td><b>${esc(fmtDate(s.date))}</b></td>
         <td>${hrs(num(s.hours))}</td>
+        <td>${money(shiftTips(s))}</td>
         <td>${money(num(s.baseRate))}</td>
-        <td>${money(shiftTips(s))}${tipsDetail ? `<div class="sub">${tipsDetail}</div>` : ''}</td>
         <td>${money(total)}</td>
         <td><b>${money(eff)}</b></td>
         <td class="actions"><button class="icon-btn" data-edit="${s.id}">Edit</button><button class="icon-btn del" data-del="${s.id}">Delete</button></td>
@@ -191,39 +189,7 @@
       : '<li class="muted small">No base rate yet — add yours above so hourly averages include it.</li>';
   }
 
-  function renderClock() {
-    const c = state.clock;
-    const card = $('.clock-card');
-    card.classList.toggle('on', !!c && !c.breakStart);
-    card.classList.toggle('onbreak', !!c?.breakStart);
-    $('#btnClockIn').hidden = !!c;
-    $('#btnClockOut').hidden = !c;
-    $('#btnBreak').hidden = !c;
-    $('#btnBreak').textContent = c?.breakStart ? 'End break' : 'Start break';
-    $('#clockStatus').textContent = !c ? 'Off the clock' : c.breakStart ? 'On break' : 'On the clock';
-    const rate = rateOn(today());
-    if (c) {
-      const ms = workedMs();
-      const h = ms / 3.6e6;
-      $('#clockMeta').textContent = `Since ${hhmm(new Date(c.start))} · base so far ${money(h * rate)} @ ${money(rate)}/hr`;
-    } else {
-      $('#clockMeta').textContent = state.rates.length ? `Base rate: ${money(rate)}/hr` : 'Set your base rate in Settings';
-    }
-    tick();
-  }
-  function workedMs() {
-    const c = state.clock; if (!c) return 0;
-    const now = Date.now();
-    const brk = (c.breakMs || 0) + (c.breakStart ? now - c.breakStart : 0);
-    return Math.max(0, now - new Date(c.start).getTime() - brk);
-  }
-  function tick() {
-    const ms = workedMs();
-    const s = Math.floor(ms / 1000);
-    $('#clockTime').textContent = `${Math.floor(s / 3600)}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}`;
-  }
-
-  function renderAll() { applyBrand(); renderClock(); renderStats(); renderShifts(); renderRates(); }
+  function renderAll() { applyBrand(); renderStats(); renderShifts(); renderRates(); }
 
   // ---------- tabs ----------
   $$('.tab').forEach(t => t.addEventListener('click', () => {
@@ -244,48 +210,6 @@
   $('#rangeFrom').addEventListener('change', renderStats);
   $('#rangeTo').addEventListener('change', renderStats);
 
-  // ---------- clock ----------
-  $('#btnClockIn').addEventListener('click', () => {
-    state.clock = { start: new Date().toISOString(), breakMs: 0, breakStart: null };
-    save(); renderClock();
-    if (!state.rates.length) toast('Tip: add your base rate in Settings');
-  });
-  $('#btnBreak').addEventListener('click', () => {
-    const c = state.clock; if (!c) return;
-    if (c.breakStart) { c.breakMs = (c.breakMs || 0) + (Date.now() - c.breakStart); c.breakStart = null; }
-    else c.breakStart = Date.now();
-    save(); renderClock();
-  });
-  const dlg = $('#clockOutDialog');
-  $('#btnClockOut').addEventListener('click', () => {
-    const c = state.clock; if (!c) return;
-    const f = $('#clockOutForm');
-    const h = round2(workedMs() / 3.6e6);
-    const startD = new Date(c.start);
-    f.hours.value = h;
-    f.baseRate.value = rateOn(ymd(startD));
-    f.cashTips.value = ''; f.cardTips.value = ''; f.note.value = '';
-    $('#coSummary').textContent = `${hhmm(startD)} – ${hhmm(new Date())} · ${hrs(h)} hours worked${c.breakMs ? ` (breaks excluded)` : ''}`;
-    dlg.showModal();
-    setTimeout(() => f.cashTips.focus(), 50);
-  });
-  $('#coCancel').addEventListener('click', () => dlg.close());
-  $('#coDiscard').addEventListener('click', () => {
-    state.clock = null; save(); dlg.close(); renderClock(); toast('Shift discarded');
-  });
-  $('#clockOutForm').addEventListener('submit', e => {
-    e.preventDefault();
-    const f = e.target, c = state.clock; if (!c) return dlg.close();
-    const startD = new Date(c.start);
-    state.shifts.push({
-      id: uid(), date: ymd(startD), start: hhmm(startD), end: hhmm(new Date()),
-      hours: round2(num(f.hours.value)), baseRate: num(f.baseRate.value),
-      cashTips: round2(num(f.cashTips.value)), cardTips: round2(num(f.cardTips.value)), note: f.note.value.trim(),
-    });
-    state.clock = null; save(); dlg.close(); renderAll(); toast('Shift saved');
-  });
-  setInterval(() => { if (state.clock) { tick(); if (Date.now() % 15000 < 1000) renderClock(); } }, 1000);
-
   // ---------- shift form ----------
   const sf = $('#shiftForm');
   let editingId = null;
@@ -295,22 +219,10 @@
     $('#shiftFormTitle').textContent = 'Log a shift'; $('#btnCancelEdit').hidden = true;
   }
   sf.date.addEventListener('change', () => { if (!editingId && state.rates.length) sf.baseRate.value = rateOn(sf.date.value); });
-  function autoHours() {
-    if (!sf.start.value || !sf.end.value) return;
-    const [h1, m1] = sf.start.value.split(':').map(Number), [h2, m2] = sf.end.value.split(':').map(Number);
-    let mins = h2 * 60 + m2 - (h1 * 60 + m1); if (mins < 0) mins += 1440;
-    sf.hours.value = round2(mins / 60);
-  }
-  sf.start.addEventListener('change', autoHours);
-  sf.end.addEventListener('change', autoHours);
   sf.addEventListener('submit', e => {
     e.preventDefault();
-    const rec = {
-      date: sf.date.value, start: sf.start.value, end: sf.end.value,
-      hours: round2(num(sf.hours.value)), baseRate: num(sf.baseRate.value),
-      cashTips: round2(num(sf.cashTips.value)), cardTips: round2(num(sf.cardTips.value)), note: sf.note.value.trim(),
-    };
-    if (editingId) Object.assign(state.shifts.find(s => s.id === editingId), rec);
+    const rec = { date: sf.date.value, hours: round2(num(sf.hours.value)), tips: round2(num(sf.tips.value)), baseRate: num(sf.baseRate.value) };
+    if (editingId) { const s = state.shifts.find(x => x.id === editingId); delete s.cashTips; delete s.cardTips; Object.assign(s, rec); }
     else state.shifts.push({ id: uid(), ...rec });
     save(); toast(editingId ? 'Shift updated' : 'Shift saved'); resetShiftForm(); renderAll();
   });
@@ -320,9 +232,9 @@
     if (ed) {
       const s = state.shifts.find(x => x.id === ed.dataset.edit); if (!s) return;
       editingId = s.id;
-      for (const k of ['date', 'start', 'end', 'hours', 'baseRate', 'note']) sf[k].value = s[k] ?? '';
-      sf.cashTips.value = num(s.cashTips) || ''; sf.cardTips.value = num(s.cardTips) || '';
+      sf.date.value = s.date; sf.hours.value = s.hours; sf.baseRate.value = s.baseRate; sf.tips.value = shiftTips(s) || '';
       $('#shiftFormTitle').textContent = 'Edit shift'; $('#btnCancelEdit').hidden = false;
+      $('.tab[data-view=dashboard]').click();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
     if (del) {
@@ -377,10 +289,10 @@
     document.body.appendChild(a); a.click(); a.remove();
   }
   $('#btnExport').addEventListener('click', () => {
-    const head = ['Date', 'Start', 'End', 'Hours', 'Base rate', 'Base pay', 'Cash tips', 'Card tips', 'Total tips', 'Total earned', 'Effective $/hr', 'Note'];
+    const head = ['Date', 'Hours', 'Tips', 'Base rate', 'Base pay', 'Total earned', 'Effective $/hr'];
     const rows = [...state.shifts].sort((a, b) => a.date.localeCompare(b.date)).map(s => {
       const t = shiftTotal(s);
-      return [s.date, s.start, s.end, num(s.hours), num(s.baseRate), round2(shiftBase(s)), num(s.cashTips), num(s.cardTips), round2(shiftTips(s)), round2(t), num(s.hours) ? round2(t / num(s.hours)) : 0, s.note];
+      return [s.date, num(s.hours), round2(shiftTips(s)), num(s.baseRate), round2(shiftBase(s)), round2(t), num(s.hours) ? round2(t / num(s.hours)) : 0];
     });
     const csv = [head, ...rows].map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
     download(`tips-${today()}.csv`, csv, 'text/csv');

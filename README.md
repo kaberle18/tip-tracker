@@ -2,7 +2,7 @@
 
 Track tips, hours worked, and your real average hourly wage (base pay + tips).
 
-- **Running clock** — clock in/out with breaks; clocking out prompts for cash and card tips.
+- **Quick logging** — after each shift, enter the date, hours worked, tips and base rate.
 - **Base rate history** — add a new rate whenever your pay changes. Each shift stores the rate in effect on its date, so past numbers never shift.
 - **Any time period** — today, this/last week, month, last 30 days, year, all time, or a custom range.
 - **Workplace branding** — paste your company's website and the app restyles itself with its name, logo, and colors.

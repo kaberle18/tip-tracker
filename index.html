@@ -29,17 +29,21 @@
   <main>
     <!-- DASHBOARD -->
     <section id="view-dashboard" class="view active">
-      <div class="card clock-card">
-        <div class="clock-left">
-          <div class="label" id="clockStatus">Off the clock</div>
-          <div class="clock-time" id="clockTime">0:00:00</div>
-          <div class="muted small" id="clockMeta">Base rate: —</div>
+      <div class="card log-card">
+        <div class="card-head">
+          <h3 id="shiftFormTitle">Log a shift</h3>
+          <button id="btnCancelEdit" class="btn ghost small" type="button" hidden>Cancel edit</button>
         </div>
-        <div class="clock-actions">
-          <button id="btnClockIn" class="btn primary big">Clock in</button>
-          <button id="btnBreak" class="btn ghost" hidden>Start break</button>
-          <button id="btnClockOut" class="btn danger big" hidden>Clock out</button>
-        </div>
+        <form id="shiftForm" class="grid-form">
+          <label>Date<input type="date" name="date" required /></label>
+          <label>Hours worked<input type="number" name="hours" step="0.01" min="0" required placeholder="e.g. 6.5" inputmode="decimal" /></label>
+          <label>Tips<input type="number" name="tips" step="0.01" min="0" placeholder="0.00" inputmode="decimal" /></label>
+          <label>Base rate ($/hr)<input type="number" name="baseRate" step="0.01" min="0" required inputmode="decimal" /></label>
+          <div class="span-all form-foot">
+            <span class="muted small" id="rateHint">Base rate fills in from the rate in effect on that date.</span>
+            <button type="submit" class="btn primary big">Save shift</button>
+          </div>
+        </form>
       </div>
 
       <div class="period-bar">
@@ -92,27 +96,6 @@
     <section id="view-shifts" class="view">
       <div class="card">
         <div class="card-head">
-          <h3 id="shiftFormTitle">Log a shift</h3>
-          <button id="btnCancelEdit" class="btn ghost small" hidden>Cancel edit</button>
-        </div>
-        <form id="shiftForm" class="grid-form">
-          <label>Date<input type="date" name="date" required /></label>
-          <label>Start<input type="time" name="start" /></label>
-          <label>End<input type="time" name="end" /></label>
-          <label>Hours worked<input type="number" name="hours" step="0.01" min="0" required placeholder="e.g. 6.5" /></label>
-          <label>Cash tips<input type="number" name="cashTips" step="0.01" min="0" placeholder="0.00" /></label>
-          <label>Card tips<input type="number" name="cardTips" step="0.01" min="0" placeholder="0.00" /></label>
-          <label>Base rate ($/hr)<input type="number" name="baseRate" step="0.01" min="0" required /></label>
-          <label class="span2">Note<input type="text" name="note" placeholder="Optional (e.g. Friday close, patio)" /></label>
-          <div class="span-all form-foot">
-            <span class="muted small">Base rate fills in from the rate in effect on that date. It's saved with the shift, so later raises don't change past numbers.</span>
-            <button type="submit" class="btn primary">Save shift</button>
-          </div>
-        </form>
-      </div>
-
-      <div class="card">
-        <div class="card-head">
           <h3>Shift history</h3>
           <div class="row-gap">
             <button id="btnExport" class="btn ghost small">Export CSV</button>
@@ -120,10 +103,10 @@
         </div>
         <div class="table-wrap">
           <table class="table">
-            <thead><tr><th>Date</th><th>Hours</th><th>Base rate</th><th>Tips</th><th>Total</th><th>$/hr</th><th></th></tr></thead>
+            <thead><tr><th>Date</th><th>Hours</th><th>Tips</th><th>Base rate</th><th>Total</th><th>$/hr</th><th></th></tr></thead>
             <tbody id="shiftRows"></tbody>
           </table>
-          <div id="emptyShifts" class="empty">No shifts yet. Clock in on the dashboard or log one above.</div>
+          <div id="emptyShifts" class="empty">No shifts yet. Log one on the Dashboard after your shift.</div>
         </div>
       </div>
     </section>
@@ -170,26 +153,6 @@
       </div>
     </section>
   </main>
-
-  <!-- Clock-out dialog -->
-  <dialog id="clockOutDialog">
-    <form method="dialog" id="clockOutForm" class="dialog-body">
-      <h3>Nice shift! Log your tips</h3>
-      <p class="muted small" id="coSummary"></p>
-      <div class="grid-form two">
-        <label>Hours worked<input type="number" name="hours" step="0.01" min="0" required /></label>
-        <label>Base rate ($/hr)<input type="number" name="baseRate" step="0.01" min="0" required /></label>
-        <label>Cash tips<input type="number" name="cashTips" step="0.01" min="0" placeholder="0.00" autofocus /></label>
-        <label>Card tips<input type="number" name="cardTips" step="0.01" min="0" placeholder="0.00" /></label>
-        <label class="span-all">Note<input type="text" name="note" placeholder="Optional" /></label>
-      </div>
-      <div class="dialog-foot">
-        <button type="button" class="btn ghost" id="coDiscard">Discard shift</button>
-        <button type="button" class="btn ghost" id="coCancel">Keep clocked in</button>
-        <button type="submit" class="btn primary" value="save">Save shift</button>
-      </div>
-    </form>
-  </dialog>
 
   <div id="toast" class="toast" hidden></div>
   <script src="/app.js"></script>
