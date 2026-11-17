@@ -220,7 +220,7 @@
     $('#shiftRows').innerHTML = rows.map(s => {
       const total = shiftTotal(s), eff = num(s.hours) ? total / num(s.hours) : 0;
       return `<tr>
-        <td><b>${esc(fmtDate(s.date))}</b></td>
+        <td><b>${esc(fmtDate(s.date))}</b>${s.note ? `<div class="sub">${esc(s.note)}</div>` : ''}</td>
         <td>${hrs(num(s.hours))}</td>
         <td>${money(shiftTips(s))}</td>
         <td>${money(num(s.baseRate))}</td>
