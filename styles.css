@@ -15,6 +15,10 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { margin: 0; }
+/* The area behind the iOS status bar (home-screen web app) takes the brand colour,
+   so iOS never tints it with the light page background. */
+html { background-color: var(--brand); }
+body { min-height: 100vh; min-height: 100dvh; }
 body {
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   background: var(--bg);
@@ -196,7 +200,7 @@ main { padding-bottom: calc(60px + env(safe-area-inset-bottom)); }
 .rate-list .rate-top { display: flex; align-items: center; gap: 0; }
 
 @media (max-width: 600px) {
-  .topbar { position: static; padding: max(12px, env(safe-area-inset-top)) 16px 0; }
+  .topbar { position: sticky; top: 0; padding: max(12px, env(safe-area-inset-top)) 16px 0; }
   .brand-logo { width: 34px; height: 34px; border-radius: 9px; }
   .brand-name { font-size: 18px; }
   .brand-sub { display: none; }
