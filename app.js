@@ -22,7 +22,7 @@
   // ---------- account + cloud sync ----------
   const TOKEN_KEY = 'tiptrack:token';
   let token = (() => { try { return localStorage.getItem(TOKEN_KEY); } catch { return null; } })();
-  let syncTimer = null, syncing = false, syncAgain = false, dirty = false, serverVersion = 0;
+  let syncTimer = null, syncing = false, syncAgain = false, dirty = false, serverVersion = 0, userId = null;
   async function api(path, opts = {}) {
     const r = await fetch(path, {
       method: opts.method || 'GET',
@@ -71,6 +71,7 @@
 
   async function loadAccount() {
     const res = await api('/api/data');
+    userId = res.id || null;
     document.getElementById('accountEmail').textContent = res.email;
     if (res.data) {
       adoptServer(res);
@@ -82,7 +83,7 @@
     }
   }
   function signOut(expired) {
-    token = null; clearTimeout(syncTimer); dirty = false; serverVersion = 0;
+    token = null; clearTimeout(syncTimer); dirty = false; serverVersion = 0; userId = null; setHomeLinks();
     try { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(KEY); } catch {}
     state = blank();
     showAuth('signin', expired ? 'Your session ended — please sign in again.' : '');
@@ -177,6 +178,7 @@
     $('#manPrimary').value = toHex6(b.primary);
     $('#manAccent').value = toHex6(b.accent);
     $('#manBg').value = toHex6(b.background || DEFAULT_BRAND.background);
+    scheduleIcon();
   }
 
   function renderStats() {
@@ -398,6 +400,86 @@
   function inkFor(c) { return luminance(c) > 0.45 ? '#111827' : '#ffffff'; }
   function mix(a, b, t) { const A = rgb(a), B = rgb(b); return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, '0')).join(''); }
 
+
+  // ---------- home-screen icon (Add to Home Screen on iPhone/Android) ----------
+  const iconKey = b => [b.logo || '', toHex6(b.primary), (b.name || '').trim()].join('|');
+  function setHomeLinks() {
+    const b = state.brand, v = b.iconV;
+    const name = (b.name || 'TipTrack').trim() || 'TipTrack';
+    const icon = userId && v ? `/api/icon?u=${userId}&v=${v}` : '/icons/icon-180.png';
+    $('#appleIcon').href = icon;
+    $('#favIcon').href = userId && v ? icon : '/icons/icon-192.png';
+    $('meta[name=apple-mobile-web-app-title]').setAttribute('content', name);
+    $('#manifestLink').href = `/api/manifest?${new URLSearchParams({ ...(userId && v ? { u: userId, v } : {}), name, color: toHex6(b.primary) })}`;
+  }
+  let iconTimer = null;
+  function scheduleIcon() {
+    setHomeLinks();
+    if (!userId || !token) return;
+    clearTimeout(iconTimer);
+    iconTimer = setTimeout(async () => {
+      const b = state.brand, key = iconKey(b);
+      if (b.iconKey === key && b.iconV) return;
+      try {
+        const png = await buildIcon(b);
+        await api('/api/icon', { method: 'PUT', body: { png } });
+        if (iconKey(state.brand) !== key) return; // brand changed meanwhile; next run handles it
+        state.brand.iconKey = key; state.brand.iconV = Date.now();
+        save(); setHomeLinks();
+      } catch (e) { console.warn('icon', e); }
+    }, 1200);
+  }
+  function loadImg(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img); img.onerror = reject;
+      img.src = src;
+    });
+  }
+  async function buildIcon(b) {
+    const S = 512, c = document.createElement('canvas'); c.width = c.height = S;
+    const ctx = c.getContext('2d');
+    const primary = toHex6(b.primary);
+    let img = null;
+    if (b.logo) {
+      const src = b.logo.startsWith('data:') ? b.logo : `/api/logo-proxy?url=${encodeURIComponent(b.logo)}`;
+      try { img = await loadImg(src); } catch { img = null; }
+      if (img && Math.min(img.naturalWidth, img.naturalHeight) < 64) img = null; // too small: would look blurry
+    }
+    if (img) {
+      // Inspect the logo: is it a full square tile already, or a transparent mark?
+      const t = document.createElement('canvas'); t.width = t.height = 64;
+      const tc = t.getContext('2d'); tc.drawImage(img, 0, 0, 64, 64);
+      const px = tc.getImageData(0, 0, 64, 64).data;
+      const at = (x, y) => px[(y * 64 + x) * 4 + 3];
+      const opaqueCorners = [at(1, 1), at(62, 1), at(1, 62), at(62, 62)].every(a => a > 245);
+      const square = Math.abs(img.naturalWidth / img.naturalHeight - 1) < 0.08;
+      if (opaqueCorners && square) {
+        ctx.drawImage(img, 0, 0, S, S);
+      } else {
+        // Transparent or wide logo: centre it on a solid tile. Light logos go on the brand colour.
+        let lum = 0, n = 0;
+        for (let i = 0; i < px.length; i += 4) if (px[i + 3] > 128) { lum += (0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2]) / 255; n++; }
+        const light = n && lum / n > 0.8;
+        ctx.fillStyle = light ? primary : '#ffffff'; ctx.fillRect(0, 0, S, S);
+        const pad = S * 0.16, box = S - pad * 2;
+        const r = Math.min(box / img.naturalWidth, box / img.naturalHeight);
+        const w = img.naturalWidth * r, h = img.naturalHeight * r;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, (S - w) / 2, (S - h) / 2, w, h);
+      }
+    } else {
+      // No usable logo: company initial on the brand colour
+      ctx.fillStyle = primary; ctx.fillRect(0, 0, S, S);
+      const letter = ((b.name || 'T').trim()[0] || 'T').toUpperCase();
+      ctx.fillStyle = inkFor(primary);
+      ctx.font = `800 ${S * 0.56}px Inter, -apple-system, system-ui, sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(letter, S / 2, S / 2 + S * 0.035);
+    }
+    return c.toDataURL('image/png');
+  }
+
   // ---------- auth screens ----------
   let authMode = 'signin', resetToken = null;
   const MODES = {
@@ -419,7 +501,7 @@
     $('#lnkSwitchText').textContent = m.switchText; $('#lnkSwitch').textContent = m.switchBtn; $('#lnkSwitch').dataset.mode = m.switchTo;
     $('#authError').hidden = true; $('#authOk').hidden = !msg; $('#authOk').textContent = msg || '';
     f.password.value = ''; f.password2.value = '';
-    setTimeout(() => (m.email === false ? f.password : f.email).focus(), 30);
+    setTimeout(() => { if (!(document.activeElement && f.contains(document.activeElement) && document.activeElement.tagName === 'INPUT')) (m.email === false ? f.password : f.email).focus(); }, 30);
   }
   $('#lnkForgot').addEventListener('click', () => showAuth('forgot'));
   $('#lnkSwitch').addEventListener('click', e => {

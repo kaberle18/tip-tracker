@@ -13,7 +13,7 @@ module.exports = handler(['GET', 'PUT'], async (req, res) => {
 
   if (req.method === 'GET') {
     const row = await current();
-    return res.json({ email: user.email, data: row?.data || null, version: row?.version ?? 0 });
+    return res.json({ id: user.id, email: user.email, data: row?.data || null, version: row?.version ?? 0 });
   }
 
   const data = req.body.data;
