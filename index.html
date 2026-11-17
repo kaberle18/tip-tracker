@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>TipTrack</title>
+  <meta name="theme-color" content="#0f766e" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img id="brandLogo" class="brand-logo" alt="" hidden />
+      <div>
+        <div id="brandName" class="brand-name">TipTrack</div>
+        <div class="brand-sub">Tips, hours &amp; real hourly pay</div>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-view="dashboard">Dashboard</button>
+      <button class="tab" data-view="shifts">Shifts</button>
+      <button class="tab" data-view="settings">Settings</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- DASHBOARD -->
+    <section id="view-dashboard" class="view active">
+      <div class="card clock-card">
+        <div class="clock-left">
+          <div class="label" id="clockStatus">Off the clock</div>
+          <div class="clock-time" id="clockTime">0:00:00</div>
+          <div class="muted small" id="clockMeta">Base rate: —</div>
+        </div>
+        <div class="clock-actions">
+          <button id="btnClockIn" class="btn primary big">Clock in</button>
+          <button id="btnBreak" class="btn ghost" hidden>Start break</button>
+          <button id="btnClockOut" class="btn danger big" hidden>Clock out</button>
+        </div>
+      </div>
+
+      <div class="period-bar">
+        <select id="periodSelect" aria-label="Period">
+          <option value="today">Today</option>
+          <option value="week" selected>This week</option>
+          <option value="lastweek">Last week</option>
+          <option value="month">This month</option>
+          <option value="30">Last 30 days</option>
+          <option value="year">This year</option>
+          <option value="all">All time</option>
+          <option value="custom">Custom range…</option>
+        </select>
+        <div id="customRange" class="custom-range" hidden>
+          <input type="date" id="rangeFrom" aria-label="From" />
+          <span>to</span>
+          <input type="date" id="rangeTo" aria-label="To" />
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat hero">
+          <div class="label">Average hourly (base + tips)</div>
+          <div class="value" id="statEffective">$0.00</div>
+          <div class="muted small" id="statEffectiveSub">per hour worked</div>
+        </div>
+        <div class="stat"><div class="label">Tips</div><div class="value" id="statTips">$0</div><div class="muted small" id="statTipsHr">$0/hr</div></div>
+        <div class="stat"><div class="label">Hours</div><div class="value" id="statHours">0</div><div class="muted small" id="statShifts">0 shifts</div></div>
+        <div class="stat"><div class="label">Base pay</div><div class="value" id="statBase">$0</div><div class="muted small" id="statBaseAvg">avg $0/hr</div></div>
+        <div class="stat"><div class="label">Total earned</div><div class="value" id="statTotal">$0</div><div class="muted small" id="statPerShift">$0 per shift</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>Last 8 weeks</h3>
+          <div class="legend"><span class="sw base"></span>Base <span class="sw tips"></span>Tips</div>
+        </div>
+        <div id="chart" class="chart"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>Running totals · all time</h3>
+        </div>
+        <div class="running" id="runningTotals"></div>
+      </div>
+    </section>
+
+    <!-- SHIFTS -->
+    <section id="view-shifts" class="view">
+      <div class="card">
+        <div class="card-head">
+          <h3 id="shiftFormTitle">Log a shift</h3>
+          <button id="btnCancelEdit" class="btn ghost small" hidden>Cancel edit</button>
+        </div>
+        <form id="shiftForm" class="grid-form">
+          <label>Date<input type="date" name="date" required /></label>
+          <label>Start<input type="time" name="start" /></label>
+          <label>End<input type="time" name="end" /></label>
+          <label>Hours worked<input type="number" name="hours" step="0.01" min="0" required placeholder="e.g. 6.5" /></label>
+          <label>Cash tips<input type="number" name="cashTips" step="0.01" min="0" placeholder="0.00" /></label>
+          <label>Card tips<input type="number" name="cardTips" step="0.01" min="0" placeholder="0.00" /></label>
+          <label>Base rate ($/hr)<input type="number" name="baseRate" step="0.01" min="0" required /></label>
+          <label class="span2">Note<input type="text" name="note" placeholder="Optional (e.g. Friday close, patio)" /></label>
+          <div class="span-all form-foot">
+            <span class="muted small">Base rate fills in from the rate in effect on that date. It's saved with the shift, so later raises don't change past numbers.</span>
+            <button type="submit" class="btn primary">Save shift</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>Shift history</h3>
+          <div class="row-gap">
+            <button id="btnExport" class="btn ghost small">Export CSV</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Date</th><th>Hours</th><th>Base rate</th><th>Tips</th><th>Total</th><th>$/hr</th><th></th></tr></thead>
+            <tbody id="shiftRows"></tbody>
+          </table>
+          <div id="emptyShifts" class="empty">No shifts yet. Clock in on the dashboard or log one above.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section id="view-settings" class="view">
+      <div class="card">
+        <div class="card-head"><h3>Base pay rate</h3></div>
+        <p class="muted small">Add a new rate whenever your pay changes. Each shift uses the rate that was in effect on its date.</p>
+        <form id="rateForm" class="inline-form">
+          <label>Rate ($/hr)<input type="number" name="rate" step="0.01" min="0" required placeholder="e.g. 2.13" /></label>
+          <label>Effective from<input type="date" name="effective" required /></label>
+          <button class="btn primary" type="submit">Add rate</button>
+        </form>
+        <ul id="rateList" class="rate-list"></ul>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Match your workplace</h3></div>
+        <p class="muted small">Paste your company's website. AI reads the site and restyles the app with its colors, name and logo.</p>
+        <form id="brandForm" class="inline-form">
+          <label class="grow">Company website<input type="text" name="url" placeholder="e.g. olivegarden.com" required /></label>
+          <button class="btn primary" type="submit" id="btnBrand">Customize</button>
+        </form>
+        <div id="brandStatus" class="muted small"></div>
+
+        <div class="brand-manual">
+          <label>Company name<input type="text" id="manName" /></label>
+          <label>Primary color<input type="color" id="manPrimary" /></label>
+          <label>Accent color<input type="color" id="manAccent" /></label>
+          <label>Background<input type="color" id="manBg" /></label>
+          <button class="btn ghost" id="btnResetBrand" type="button">Reset to default</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Your data</h3></div>
+        <p class="muted small">Everything is saved privately in this browser on this device. Back it up to move it to another phone or computer.</p>
+        <div class="row-gap">
+          <button class="btn ghost" id="btnBackup">Download backup</button>
+          <label class="btn ghost file-btn">Restore backup<input type="file" id="restoreFile" accept="application/json" hidden /></label>
+          <button class="btn danger-ghost" id="btnWipe">Erase all data</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Clock-out dialog -->
+  <dialog id="clockOutDialog">
+    <form method="dialog" id="clockOutForm" class="dialog-body">
+      <h3>Nice shift! Log your tips</h3>
+      <p class="muted small" id="coSummary"></p>
+      <div class="grid-form two">
+        <label>Hours worked<input type="number" name="hours" step="0.01" min="0" required /></label>
+        <label>Base rate ($/hr)<input type="number" name="baseRate" step="0.01" min="0" required /></label>
+        <label>Cash tips<input type="number" name="cashTips" step="0.01" min="0" placeholder="0.00" autofocus /></label>
+        <label>Card tips<input type="number" name="cardTips" step="0.01" min="0" placeholder="0.00" /></label>
+        <label class="span-all">Note<input type="text" name="note" placeholder="Optional" /></label>
+      </div>
+      <div class="dialog-foot">
+        <button type="button" class="btn ghost" id="coDiscard">Discard shift</button>
+        <button type="button" class="btn ghost" id="coCancel">Keep clocked in</button>
+        <button type="submit" class="btn primary" value="save">Save shift</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+{
+  "name": "tip-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Track tips, hours worked and your real average hourly wage. Brandable to your workplace.",
+  "engines": { "node": ">=18" }
+}
