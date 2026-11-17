@@ -236,12 +236,13 @@
     $('#shiftRows').innerHTML = rows.map(s => {
       const total = shiftTotal(s), eff = num(s.hours) ? total / num(s.hours) : 0;
       return `<tr>
-        <td><b>${esc(fmtDate(s.date))}</b>${s.note ? `<div class="sub">${esc(s.note)}</div>` : ''}</td>
-        <td>${hrs(num(s.hours))}</td>
-        <td>${money(shiftTips(s))}</td>
-        <td>${money(num(s.baseRate))}</td>
-        <td>${money(total)}</td>
-        <td><b>${money(eff)}</b></td>
+        <td class="c-date"><b>${esc(fmtDate(s.date))}</b>${s.note ? `<span class="sub">${esc(s.note)}</span>` : ''}</td>
+        <td class="c-hours">${hrs(num(s.hours))}</td>
+        <td class="c-tips">${money(shiftTips(s))}</td>
+        <td class="c-rate">${money(num(s.baseRate))}</td>
+        <td class="c-total">${money(total)}</td>
+        <td class="c-eff"><b>${money(eff)}</b></td>
+        <td class="c-meta">${hrs(num(s.hours))} hrs · ${money(shiftTips(s))} tips · ${money(num(s.baseRate))}/hr base</td>
         <td class="actions"><button class="icon-btn" data-edit="${s.id}">Edit</button><button class="icon-btn del" data-del="${s.id}">Delete</button></td>
       </tr>`;
     }).join('');
@@ -251,7 +252,7 @@
     const sorted = [...state.rates].sort((a, b) => b.effective.localeCompare(a.effective));
     const currentId = sorted.find(r => r.effective <= today())?.id;
     $('#rateList').innerHTML = sorted.length ? sorted.map(r => `
-      <li><span><b>${money(r.rate)}/hr</b> <span class="muted small">from ${esc(fmtDate(r.effective))}</span>${r.id === currentId ? '<span class="current">CURRENT</span>' : ''}</span>
+      <li><span><span class="rate-top"><b>${money(r.rate)}/hr</b>${r.id === currentId ? '<span class="current">CURRENT</span>' : ''}</span><span class="muted small">from ${esc(fmtDate(r.effective))}</span></span>
       <button class="icon-btn del" data-delrate="${r.id}">Remove</button></li>`).join('')
       : '<li class="muted small">No base rate yet — add yours above so hourly averages include it.</li>';
   }

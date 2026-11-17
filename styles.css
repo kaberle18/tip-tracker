@@ -179,3 +179,58 @@ dialog::backdrop { background: rgba(17, 24, 39, .45); }
 .auth-ok { background: #f0fdf4; color: #15803d; border-radius: 10px; padding: 10px 12px; font-size: 14px; }
 .account-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .account-email { font-weight: 700; font-size: 16px; margin-top: 4px; word-break: break-all; }
+
+/* ---------- Mobile polish ---------- */
+.grid-form > *, .grid-form label, .inline-form label, .brand-manual label { min-width: 0; }
+input, select { font-size: 16px; min-height: 44px; } /* 16px stops iOS zoom-on-focus */
+input[type=date] { -webkit-appearance: none; appearance: none; display: block; min-width: 0; max-width: 100%; text-align: left; line-height: 1.2; }
+input[type=date]::-webkit-date-and-time-value { text-align: left; margin: 0; }
+input[type=date]::-webkit-calendar-picker-indicator { opacity: .6; }
+input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+.topbar { padding-top: max(18px, env(safe-area-inset-top)); }
+main { padding-bottom: calc(60px + env(safe-area-inset-bottom)); }
+.c-meta { display: none; }
+.table td.c-date .sub { display: block; }
+.rate-list li > span { display: flex; flex-direction: column; gap: 2px; }
+.rate-list .rate-top { display: flex; align-items: center; gap: 0; }
+
+@media (max-width: 600px) {
+  .topbar { position: static; padding: max(12px, env(safe-area-inset-top)) 16px 0; }
+  .brand-logo { width: 34px; height: 34px; border-radius: 9px; }
+  .brand-name { font-size: 18px; }
+  .brand-sub { display: none; }
+  .tabs { margin-top: 8px; gap: 0; }
+  .tab { flex: 1; padding: 12px 6px; text-align: center; }
+  main { padding: 14px 12px calc(40px + env(safe-area-inset-bottom)); }
+  .card { padding: 16px; border-radius: 14px; margin-bottom: 12px; }
+  .stats { gap: 10px; }
+  .stat { padding: 14px; }
+  .stat .value { font-size: 22px; }
+  .stat.hero .value { font-size: 36px; }
+  .grid-form { gap: 10px; }
+  .form-foot { flex-direction: column; align-items: stretch; }
+  .form-foot .btn { width: 100%; }
+  .inline-form label { min-width: 0; flex: 1 1 100%; }
+  .inline-form .btn { width: 100%; }
+  .period-bar select { width: 100%; }
+  .custom-range { width: 100%; }
+  .custom-range input { flex: 1; }
+  .running div b { font-size: 18px; }
+
+  /* Shift history: stacked rows instead of a wide table */
+  .table thead { display: none; }
+  .table, .table tbody { display: block; }
+  .table tr { display: grid; grid-template-columns: 1fr auto; grid-template-areas: "date eff" "meta total" "actions actions"; gap: 2px 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .table td { border: 0; padding: 0; }
+  .table td.c-hours, .table td.c-tips, .table td.c-rate { display: none; }
+  .table td.c-date { grid-area: date; }
+  .table td.c-eff { grid-area: eff; text-align: right; font-size: 16px; }
+  .table td.c-eff::after { content: "/hr"; font-weight: 500; color: var(--muted); font-size: 12px; }
+  .table td.c-meta { display: block; grid-area: meta; color: var(--muted); font-size: 13px; }
+  .table td.c-total { grid-area: total; text-align: right; color: var(--muted); font-size: 13px; }
+  .table td.actions { grid-area: actions; text-align: left; margin-top: 2px; }
+  .table td.actions .icon-btn { padding: 6px 12px 6px 0; }
+  .table td .sub { display: inline; margin-left: 6px; }
+  .table td.c-date .sub::before { content: "· "; }
+}
